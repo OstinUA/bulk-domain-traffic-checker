@@ -12,13 +12,13 @@ from tqdm import tqdm
 logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 warnings.filterwarnings("ignore")
 
-OUTPUT_FILE = 'dataloom_traffic.txt'
+OUTPUT_FILE = 'domain_traffic.txt'
 KEY_FILE = 'api_key.txt'
-CONCURRENCY_LIMIT = 5
+CONCURRENCY_LIMIT = 1
 FLUSH_INTERVAL = 20
-MAX_RETRIES = 4
-TIMEOUT_SECONDS = 30
-WORKER_DELAY = 0.2
+MAX_RETRIES = 3
+TIMEOUT_SECONDS = 10
+WORKER_DELAY = 1
 
 API_HOST = "similarweb-insights.p.rapidapi.com"
 API_URL = f"https://{API_HOST}/traffic"
