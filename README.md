@@ -2,9 +2,10 @@
 
 A quota-aware, asynchronous traffic logging library and CLI utility for high-volume domain analytics through the Similarweb RapidAPI endpoint.
 
+[![Gist](https://img.shields.io/badge/gist.github-version_of_this_repository-DCDCDC?style=for-the-badge&logo=github)](https://gist.github.com/OstinUA/d16ea22847ab3f597aca9406f9b9eaa9)
+
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Build](https://img.shields.io/badge/Build-Passing-2ea44f?style=for-the-badge)](#)
-[![Version](https://img.shields.io/badge/Version-1.0.0-informational?style=for-the-badge)](#)
 [![Coverage](https://img.shields.io/badge/Coverage-Not%20Configured-lightgrey?style=for-the-badge)](#)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge)](LICENSE)
 
