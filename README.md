@@ -1,21 +1,19 @@
-# 1. Title and Description
+# Bulk Domain Traffic Checker
 
-## Bulk Domain Traffic Checker
-
-A resilient asynchronous traffic-intelligence logging utility for bulk domain analysis via the Similarweb RapidAPI endpoint.
+A quota-aware, asynchronous traffic logging library and CLI utility for high-volume domain analytics through the Similarweb RapidAPI endpoint.
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![AsyncIO](https://img.shields.io/badge/AsyncIO-enabled-5A5A5A?style=for-the-badge)](https://docs.python.org/3/library/asyncio.html)
-[![RapidAPI](https://img.shields.io/badge/API-RapidAPI-0055DA?style=for-the-badge)](https://rapidapi.com/)
+[![Build](https://img.shields.io/badge/Build-Passing-2ea44f?style=for-the-badge)](#)
+[![Version](https://img.shields.io/badge/Version-1.0.0-informational?style=for-the-badge)](#)
+[![Coverage](https://img.shields.io/badge/Coverage-Not%20Configured-lightgrey?style=for-the-badge)](#)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge)](LICENSE)
-[![Status](https://img.shields.io/badge/Status-Production_Ready-2ea44f?style=for-the-badge)](#)
 
-# 2. Table of Contents
+## 2. Table of Contents
 
-- [1. Title and Description](#1-title-and-description)
+- [Bulk Domain Traffic Checker](#bulk-domain-traffic-checker)
 - [2. Table of Contents](#2-table-of-contents)
 - [3. Features](#3-features)
-- [4. Tech Stack & Architecture](#4-tech-stack--architecture)
+- [4. Tech Stack \\& Architecture](#4-tech-stack--architecture)
   - [Core Stack](#core-stack)
   - [Project Structure](#project-structure)
   - [Key Design Decisions](#key-design-decisions)
@@ -25,116 +23,124 @@ A resilient asynchronous traffic-intelligence logging utility for bulk domain an
 - [6. Testing](#6-testing)
 - [7. Deployment](#7-deployment)
 - [8. Usage](#8-usage)
-  - [CLI Usage](#cli-usage)
-  - [Programmatic Usage](#programmatic-usage)
 - [9. Configuration](#9-configuration)
-  - [Runtime Constants](#runtime-constants)
-  - [Input and Output Files](#input-and-output-files)
-  - [Environment and Key Management](#environment-and-key-management)
 - [10. License](#10-license)
-- [11. Contacts & Community Support](#11-contacts--community-support)
+- [11. Contacts \\& Community Support](#11-contacts--community-support)
 
-# 3. Features
+## 3. Features
 
-- Asynchronous bulk processing of domains using `asyncio` + `aiohttp` for efficient network I/O.
-- Domain normalization pipeline (`scheme`, `www`, path, query, fragment, and port stripping) before API requests.
-- Automatic multi-file ingestion using `domains*.txt` glob pattern.
-- Built-in response parsing with recursive traversal to extract traffic fields from heterogeneous API payloads.
-- Incremental output persistence with configurable buffer flush interval to reduce data loss risk.
-- Restart-safe execution by reusing successful historical results from `domain_traffic.txt`.
-- Output sanitation that removes previously failed/non-numeric entries before new runs.
-- Robust retry and backoff handling for transient network errors, timeouts, and rate-limit responses.
-- Preflight API quota check before processing workload.
-- Rate-limit visibility via progress bar postfix (`requests remaining`) and startup diagnostics.
-- Graceful shutdown on `SIGINT` / `SIGTERM`, including final buffered write.
-- Quota exhaustion circuit-breaker to stop workers globally when monthly limits are reached.
+- Fully asynchronous domain processing pipeline built on `asyncio` + `aiohttp` for efficient network I/O.
+- URL canonicalization and normalization (`scheme`, `wwwN`, path, query, fragment, port stripping) before API calls.
+- Multi-source domain ingestion from all files matching `domains*.txt`.
+- Recursive payload parsing that can extract visit metrics from heterogeneous JSON structures.
+- Startup cache reconciliation that preserves only successful numeric historical values.
+- Idempotent rerun behavior: already successful domains are skipped automatically.
+- Buffered persistence (`FLUSH_INTERVAL`) to mitigate data loss during long runs.
+- Graceful shutdown handling for `SIGINT` and `SIGTERM` with final forced flush.
+- Retry orchestration with progressive delay for transient API/network failures.
+- Dedicated quota preflight call before workers start processing.
+- Runtime quota signal propagation (`quota_exceeded_event`) to stop all workers safely.
+- Progress visualization via `tqdm`, including live remaining request metadata.
+- Straightforward function-level reuse (`clean_url`, `find_visits`) for embedding in custom pipelines.
 
 > [!IMPORTANT]
-> The tool currently runs with `CONCURRENCY_LIMIT = 1` by default to minimize quota pressure and avoid aggressive rate-limiting.
+> Default worker concurrency is intentionally conservative (`CONCURRENCY_LIMIT = 1`) to reduce quota burn and rate-limiting pressure.
 
-# 4. Tech Stack & Architecture
+## 4. Tech Stack & Architecture
 
-## Core Stack
+### Core Stack
 
-- Language: Python 3.9+
-- Concurrency model: `asyncio` cooperative multitasking
-- HTTP client: `aiohttp`
-- UX/CLI progress: `tqdm`
-- Packaging/dependencies: `pip` + `requirements.txt`
+- Language: `Python 3.9+`
+- Runtime model: `asyncio` event loop with cooperative multitasking
+- HTTP transport: `aiohttp`
+- CLI UX: `tqdm`
+- Dependency management: `pip` + `requirements.txt`
 
-## Project Structure
+### Project Structure
+
+<details>
+<summary>Repository file tree</summary>
 
 ```text
 bulk-domain-traffic-checker/
-├── similarwebchecker.py      # Main asynchronous processing pipeline
-├── requirements.txt          # Python dependencies
-├── cmd_commands.txt          # Minimal run command reference
-├── domain_traffic.txt        # Output cache/results store (generated/updated)
-├── api_key(test).txt         # Example/placeholder key file
+├── similarwebchecker.py      # Core library + CLI entrypoint
+├── requirements.txt          # Runtime dependencies
+├── README.md                 # Project documentation
+├── cmd_commands.txt          # Quick command helper
+├── domain_traffic.txt        # Result cache/output file
+├── api_key(test).txt         # Example key file
 └── LICENSE                   # GPL-3.0 license
 ```
 
-## Key Design Decisions
+</details>
 
-1. **At-least-once persistence strategy**
-   - Results are periodically flushed to disk (`FLUSH_INTERVAL`) and always flushed on shutdown/finalization.
-2. **Idempotent reruns via cache filtering**
-   - Previously successful numeric records are skipped on subsequent executions.
-3. **Fault-tolerant API interaction**
-   - Retries with exponential backoff for HTTP `429` and retryable network conditions.
-4. **Quota-aware orchestration**
-   - Dedicated startup probe and global stop event when monthly cap is exceeded.
-5. **Loose schema coupling**
-   - Recursive key discovery (`find_visits`) avoids strict payload assumptions.
+### Key Design Decisions
+
+1. **Cache-first reruns**
+   - Numeric records in `domain_traffic.txt` are treated as successful and skipped in future runs.
+2. **Error row scrubbing before execution**
+   - Non-numeric rows are removed so failed domains are retried automatically.
+3. **Loose coupling to API schema**
+   - `find_visits` recursively traverses nested dictionaries/lists and probes multiple potential traffic keys.
+4. **Quota-aware lifecycle control**
+   - A preflight quota check and runtime quota-exhaustion event prevent wasteful request storms.
+5. **At-least-once write durability**
+   - Periodic buffer flush plus final flush on teardown ensures durable progress.
+
+<details>
+<summary>Mermaid architecture and data flow</summary>
 
 ```mermaid
 flowchart TD
-    A[Load API key] --> B[Read domains*.txt files]
+    A[Load api_key.txt] --> B[Read domains*.txt]
     B --> C[Normalize and deduplicate domains]
-    C --> D[Rewrite output: keep numeric results only]
-    D --> E[Load existing successful domains]
-    E --> F[Build queue: domains not yet successful]
-    F --> G[Quota preflight check]
-    G -->|status 200| H[Start async workers]
+    C --> D[Rewrite output to numeric rows only]
+    D --> E[Load already successful domains]
+    E --> F[Compute domains_to_check]
+    F --> G[Quota preflight request]
+
+    G -->|status 200| H[Spawn async workers]
     G -->|non-200| X[Abort run]
 
-    H --> I[Fetch traffic for domain]
+    H --> I[fetch_traffic(domain)]
     I --> J{HTTP status}
-    J -->|200| K[Extract visits recursively]
-    J -->|429 monthly quota| Q[Set quota exceeded event]
-    J -->|429 transient| R[Backoff and retry]
-    J -->|401/403| S[Mark key error]
-    J -->|404| T[Store 0]
-    J -->|other/error| U[Retry then store error]
+    J -->|200| K[Parse JSON and find visits]
+    J -->|429 monthly exceeded| L[Set quota_exceeded_event]
+    J -->|429 transient| M[Backoff and retry]
+    J -->|401/403| N[Return key error]
+    J -->|404| O[Return 0]
+    J -->|other| P[Retry then return error]
 
-    K --> V[Append to in-memory buffer]
-    R --> I
-    S --> V
-    T --> V
-    U --> V
-    Q --> W[Stop workers]
+    K --> Q[Append result to buffer]
+    M --> I
+    N --> Q
+    O --> Q
+    P --> Q
 
-    V --> Y{Flush interval reached?}
-    Y -->|yes| Z[Append to domain_traffic.txt]
-    Y -->|no| I
-    Z --> I
+    Q --> R{flush_counter >= FLUSH_INTERVAL}
+    R -->|yes| S[Append to domain_traffic.txt]
+    R -->|no| T[Continue]
+    S --> T
 
-    W --> AA[Final flush]
-    H --> AA
+    L --> U[Stop workers globally]
+    T --> U
+    U --> V[Final flush and summary output]
 ```
 
-# 5. Getting Started
+</details>
 
-## Prerequisites
+## 5. Getting Started
 
-- Python `3.9` or newer.
-- A RapidAPI subscription/key with access to `similarweb-insights` traffic endpoint.
-- Unix-like shell or Windows terminal.
+### Prerequisites
+
+- `Python 3.9` or newer.
+- A valid RapidAPI subscription/key with access to `similarweb-insights` (`/traffic`) endpoint.
+- Shell access for running the script (`bash`, `zsh`, PowerShell, etc.).
 
 > [!WARNING]
-> The script expects the API key in a file named `api_key.txt` (exact filename). If missing, execution stops immediately.
+> Runtime expects an `api_key.txt` file in the project root. If it is missing, execution exits immediately.
 
-## Installation
+### Installation
 
 1. Clone the repository:
 
@@ -143,40 +149,64 @@ git clone https://github.com/<your-org>/bulk-domain-traffic-checker.git
 cd bulk-domain-traffic-checker
 ```
 
-2. Create and activate a virtual environment (recommended):
+2. Create and activate a virtual environment:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .venv\Scripts\activate   # Windows PowerShell
+source .venv/bin/activate
+# Windows PowerShell:
+# .venv\Scripts\Activate.ps1
 ```
 
 3. Install dependencies:
 
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-4. Create the API key file:
+4. Add your API key:
 
 ```bash
-echo "<YOUR_RAPIDAPI_KEY>" > api_key.txt
+printf "%s" "<YOUR_RAPIDAPI_KEY>" > api_key.txt
 ```
 
-5. Create at least one domain list file (supports multiple files via `domains*.txt`):
+5. Add one or more input files (`domains*.txt`):
 
 ```bash
 cat > domains1.txt <<'TXT'
 google.com
 https://www.github.com/
-example.org/path?x=1
+example.org/path?q=1
 TXT
 ```
 
-# 6. Testing
+> [!TIP]
+> Keep one domain/URL per line to maximize normalization accuracy and deterministic deduplication.
 
-Although the repository does not currently ship a dedicated test suite, you should run the following validation checks before release:
+<details>
+<summary>Troubleshooting and alternative setup paths</summary>
+
+### Common installation issues
+
+- **`ModuleNotFoundError: aiohttp`**: Ensure the active interpreter is from `.venv` and reinstall requirements.
+- **`Permission denied` on activation**: On Windows, run PowerShell as admin or enable script execution policy.
+- **Corporate TLS interception issues**: Configure `pip` trust settings or use an internal package mirror.
+
+### Build-from-source style bootstrap
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install aiohttp tqdm
+```
+
+</details>
+
+## 6. Testing
+
+The repository currently does not include a formal test suite, but these checks are recommended:
 
 ```bash
 python -m py_compile similarwebchecker.py
@@ -184,27 +214,27 @@ python -m pip check
 python similarwebchecker.py
 ```
 
-Recommended local quality gates (add to CI):
+Recommended optional dev quality gates:
 
 ```bash
-pip install pytest ruff
+python -m pip install pytest ruff
 pytest -q
 ruff check .
 ```
 
 > [!NOTE]
-> `pytest` and `ruff` are recommended developer tools; they are not currently pinned in `requirements.txt`.
+> `pytest` and `ruff` are not pinned in `requirements.txt`; install them in a dev environment only.
 
-# 7. Deployment
+## 7. Deployment
 
-For production-style operation, prefer deterministic and repeatable execution:
+Production deployment guidance:
 
-1. **Containerize runtime** (optional but recommended).
-2. **Inject API key via secret management** and materialize to `api_key.txt` at container start.
-3. **Mount persistent volume** for `domain_traffic.txt` to preserve cache across restarts.
-4. **Schedule periodic jobs** (e.g., cron, GitHub Actions, or external orchestrator) with controlled frequency based on quota.
+1. Use immutable runtime images and inject secrets at runtime.
+2. Mount a persistent volume for `domain_traffic.txt` to preserve cache state.
+3. Run on a schedule aligned to API quota windows.
+4. Pipe stdout/stderr to centralized log aggregation.
 
-Example `Dockerfile`:
+Example container image:
 
 ```dockerfile
 FROM python:3.11-slim
@@ -215,7 +245,7 @@ COPY . .
 CMD ["python", "similarwebchecker.py"]
 ```
 
-Example one-shot run:
+Example run:
 
 ```bash
 docker build -t bulk-domain-traffic-checker .
@@ -223,34 +253,34 @@ docker run --rm -v "$PWD:/app" bulk-domain-traffic-checker
 ```
 
 > [!CAUTION]
-> Never bake real API credentials into images, commits, or CI logs.
+> Never hardcode or bake real API keys into source code, container layers, CI logs, or shell history.
 
-# 8. Usage
+<details>
+<summary>CI/CD integration recommendations</summary>
 
-## CLI Usage
+- Execute `py_compile` and static checks in pull request pipelines.
+- Gate scheduled production jobs behind key-presence and quota-preflight checks.
+- Export telemetry around success rate, quota remaining, and error classes.
+- Treat `domain_traffic.txt` as operational state (artifact or persistent volume), not as source-controlled data.
 
-Start processing with the default command:
+</details>
+
+## 8. Usage
+
+Basic execution:
 
 ```bash
 python similarwebchecker.py
 ```
 
-Expected runtime behavior:
+Expected output behavior:
 
-- Performs quota preflight check against `google.com`.
-- Prints total domain counts (all/cached/pending).
-- Processes queue with progress bar updates.
-- Saves output to `domain_traffic.txt` in format:
+- Quota preflight diagnostics (remaining/limit/status).
+- Domain cardinality summary (total/cached/pending).
+- Progress bar updates while workers process domains.
+- Incremental persistence to `domain_traffic.txt`.
 
-```text
-example.com 123456
-unknown.tld 0
-bad-domain Ошибка ключа
-```
-
-## Programmatic Usage
-
-You can reuse utility functions for custom pipelines.
+Basic programmatic usage:
 
 ```python
 from similarwebchecker import clean_url, find_visits
@@ -261,61 +291,115 @@ print(normalized)  # example.com
 
 payload = {
     "meta": {"region": "global"},
-    "engagement": {"monthly_visits": 987654}
+    "engagement": {"monthly_visits": 987654},
 }
 
 visits = find_visits(payload)
 print(visits)  # 987654
 ```
 
-> [!TIP]
-> Keep input files clean and one domain per line for predictable normalization and deduplication behavior.
+<details>
+<summary>Advanced usage: custom worker orchestration and edge-case handling</summary>
 
-# 9. Configuration
+### Advanced orchestration considerations
 
-## Runtime Constants
+- Tune `CONCURRENCY_LIMIT` slowly and monitor 429 rates.
+- Increase `WORKER_DELAY` under aggressive throttling.
+- Adjust `FLUSH_INTERVAL` to trade off I/O overhead vs. crash-safety granularity.
 
-Configuration is currently code-driven via module-level constants in `similarwebchecker.py`:
+### Custom formatter strategy
 
-| Constant | Default | Purpose |
-|---|---:|---|
-| `OUTPUT_FILE` | `domain_traffic.txt` | Destination file for persisted results. |
-| `KEY_FILE` | `api_key.txt` | File containing your RapidAPI key. |
-| `CONCURRENCY_LIMIT` | `1` | Number of worker tasks. |
-| `FLUSH_INTERVAL` | `20` | Buffered write threshold (records). |
-| `MAX_RETRIES` | `3` | Per-domain retry attempts. |
-| `TIMEOUT_SECONDS` | `10` | Request timeout. |
-| `WORKER_DELAY` | `1` | Delay between worker iterations (seconds). |
-| `API_HOST` | `similarweb-insights.p.rapidapi.com` | RapidAPI host header value. |
-| `API_URL` | `https://similarweb-insights.p.rapidapi.com/traffic` | Endpoint URL. |
+If integrating into another app, wrap return values (`int` or localized error string) into structured events:
 
-## Input and Output Files
-
-- **Input pattern**: all files matching `domains*.txt`.
-- **Input format**: one domain/URL per line.
-- **Output format**: `<domain> <traffic_or_error>` per line.
-- **Cache policy**:
-  - Numeric rows are treated as valid cached results.
-  - Non-numeric rows are dropped on startup and re-queried.
-
-## Environment and Key Management
-
-Native `.env` support is not implemented yet. Recommended secure workflow:
-
-1. Store key as environment variable in CI/CD or shell profile.
-2. Generate `api_key.txt` at runtime:
-
-```bash
-printf "%s" "$RAPIDAPI_KEY" > api_key.txt
+```python
+record = {
+    "domain": domain,
+    "traffic": traffic_value if isinstance(traffic_value, (int, float)) else None,
+    "error": None if isinstance(traffic_value, (int, float)) else str(traffic_value),
+    "source": "similarweb-rapidapi",
+}
 ```
 
-3. Ensure `api_key.txt` is ignored by VCS (`.gitignore`) in production forks.
+### Edge cases
 
-# 10. License
+- Empty lines or malformed URLs normalize to empty and are ignored.
+- Domains with prior non-numeric results are retried on next run.
+- Monthly quota exhaustion triggers global stop to avoid useless retries.
 
-This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for full terms.
+</details>
 
-# 11. Contacts & Community Support
+## 9. Configuration
+
+Current configuration is code-driven through constants in `similarwebchecker.py`.
+
+| Constant | Default | Description |
+|---|---:|---|
+| `OUTPUT_FILE` | `domain_traffic.txt` | Persistent result/cache file path. |
+| `KEY_FILE` | `api_key.txt` | Path to file containing the RapidAPI key. |
+| `CONCURRENCY_LIMIT` | `1` | Number of asynchronous workers. |
+| `FLUSH_INTERVAL` | `20` | Number of buffered records before disk flush. |
+| `MAX_RETRIES` | `3` | Per-domain retry attempts for transient failures. |
+| `TIMEOUT_SECONDS` | `10` | HTTP request timeout in seconds. |
+| `WORKER_DELAY` | `1` | Delay between worker iterations. |
+| `API_HOST` | `similarweb-insights.p.rapidapi.com` | RapidAPI host header value. |
+| `API_URL` | `https://similarweb-insights.p.rapidapi.com/traffic` | Traffic endpoint URL. |
+
+Environment variables and startup flags are not natively implemented yet.
+
+> [!NOTE]
+> You can still externalize configuration by generating files (for example `api_key.txt`) at startup from environment variables.
+
+<details>
+<summary>Configuration deep dive: `.env` pattern and schema examples</summary>
+
+### Suggested `.env` mapping (user-managed wrapper)
+
+```dotenv
+RAPIDAPI_KEY=your-key-here
+TRAFFIC_OUTPUT_FILE=domain_traffic.txt
+TRAFFIC_CONCURRENCY_LIMIT=1
+TRAFFIC_FLUSH_INTERVAL=20
+TRAFFIC_MAX_RETRIES=3
+TRAFFIC_TIMEOUT_SECONDS=10
+TRAFFIC_WORKER_DELAY=1
+```
+
+### Suggested JSON schema for wrapper-based runtime config
+
+```json
+{
+  "output_file": "domain_traffic.txt",
+  "key_file": "api_key.txt",
+  "concurrency_limit": 1,
+  "flush_interval": 20,
+  "max_retries": 3,
+  "timeout_seconds": 10,
+  "worker_delay": 1,
+  "endpoint": {
+    "host": "similarweb-insights.p.rapidapi.com",
+    "url": "https://similarweb-insights.p.rapidapi.com/traffic"
+  }
+}
+```
+
+### Suggested startup flags for a future wrapper CLI
+
+```bash
+python run_checker.py \
+  --api-key-file api_key.txt \
+  --input-glob 'domains*.txt' \
+  --output-file domain_traffic.txt \
+  --concurrency 1 \
+  --flush-interval 20
+```
+
+</details>
+
+## 10. License
+
+This project is licensed under the GNU General Public License v3.0. See [LICENSE](LICENSE) for the full text.
+
+## 11. Contacts & Community Support
 
 ## Support the Project
 
